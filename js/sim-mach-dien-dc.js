@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * sim-manh-dien-dc.js — Động Cơ Mô Phỏng Mạch Điện DC
+ * sim-mach-dien-dc.js — Động Cơ Mô Phỏng Mạch Điện DC
  * Physics Lab | EXPERIMENT: Mạch Điện Một Chiều
  * Phương pháp: Modified Nodal Analysis (MNA)
  * Tích phân số: Backward Euler cho tụ điện

@@ -304,7 +304,8 @@ function createGlobalSidebar() {
         { name: "Cơ chế sinh dòng điện", file: "dong-dien-kim-loai.html", icon: "zap", isSpecial: true },
         { name: "Đặc tuyến Điện Trở Nhiệt", file: "dien-tro-nhiet.html", icon: "thermometer", isSpecial: true },
         { name: "Khảo sát Nguồn điện & Mạch kín", file: "nguon-dien-mach-kin.html", icon: "zap", isSpecial: true },
-        { name: "Mạch Điện DC — MNA", file: "manh-dien-dc.html", icon: "circuit-board", isSpecial: true },
+        { name: "Mạch Điện DC — MNA", file: "mach-dien-dc.html", icon: "circuit-board", isSpecial: true },
+        { name: "Đo E & r của Pin", file: "do-suat-dien-dong.html", icon: "battery-charging" },
         { name: "Chuyển Thể 3D - Beta", file: "js/su-chuyen-the.html", icon: "box", isSpecial: true }
     ];
 
@@ -392,12 +393,9 @@ function createGlobalSidebar() {
 
         // Resolve Path
         let href = '';
-        if (link.isSpecial) {
-            // For files in js/ folder (isSpecial=true)
-            // link.file is usually 'js/filename.html'
+        if (link.file.startsWith('js/')) {
             const filename = link.file.split('/').pop();
-            if (isJsDir) href = './' + filename;
-            else href = link.file;
+            href = isJsDir ? './' + filename : link.file;
         } else {
             href = rootPrefix + link.file;
         }

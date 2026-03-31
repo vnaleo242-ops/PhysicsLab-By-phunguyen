@@ -56,14 +56,13 @@ function toggleDarkMode() {
 function applyInitialTheme() {
     const storedTheme = localStorage.getItem('theme');
 
-    // Mặc định luôn là 'dark' khi không có cài đặt nào được lưu.
-    let initialTheme = 'dark';
+    // [SECURITY] Whitelist validation — chỉ chấp nhận đúng 2 giá trị hợp lệ.
+    // Chặn mọi nỗ lực inject giá trị độc hại vào localStorage.
+    const ALLOWED_THEMES = ['light', 'dark'];
+    const isValidTheme = ALLOWED_THEMES.includes(storedTheme);
 
-    // Nếu có theme đã lưu trong Local Storage, sử dụng nó.
-    if (storedTheme) {
-        initialTheme = storedTheme;
-    }
-    // Nếu không, nó sẽ giữ nguyên 'dark', bỏ qua tùy chọn hệ thống (prefers-color-scheme).
+    // Mặc định 'dark' nếu không có hoặc giá trị không hợp lệ.
+    const initialTheme = isValidTheme ? storedTheme : 'dark';
 
     setTheme(initialTheme);
 }
@@ -304,25 +303,59 @@ function createGlobalSidebar() {
         { name: "Giao Thoa Ánh Sáng", file: "giao-thoa-anh-sang.html", icon: "sun" },
         { name: "Cơ chế sinh dòng điện", file: "dong-dien-kim-loai.html", icon: "zap", isSpecial: true },
         { name: "Đặc tuyến Điện Trở Nhiệt", file: "dien-tro-nhiet.html", icon: "thermometer", isSpecial: true },
+        { name: "Mạch Điện DC — MNA", file: "manh-dien-dc.html", icon: "circuit-board", isSpecial: true },
         { name: "Chuyển Thể 3D - Beta", file: "js/su-chuyen-the.html", icon: "box", isSpecial: true }
     ];
 
     // --- Dynamic Module Injection ---
+    // [SECURITY] Validate và sanitize toàn bộ dữ liệu từ localStorage trước khi sử dụng.
+    // Ngăn chặn: XSS qua tên module, Path Traversal qua id, Prototype Pollution.
     try {
-        const storedModules = JSON.parse(localStorage.getItem('custom_modules') || '[]');
-        if (storedModules && Array.isArray(storedModules)) {
+        const raw = localStorage.getItem('custom_modules');
+        const storedModules = raw ? JSON.parse(raw) : [];
+
+        // [SECURITY] Whitelist các icon name hợp lệ của Lucide
+        const ALLOWED_ICONS = [
+            'box', 'zap', 'activity', 'atom', 'flask-conical', 'waves',
+            'mic', 'music', 'sun', 'thermometer', 'cpu', 'bar-chart-2',
+            'align-center', 'clock', 'repeat', 'trending-down', 'scale'
+        ];
+
+        // [SECURITY] Hàm strip HTML tags — ngăn XSS khi render innerHTML
+        const stripHtml = (str) => String(str).replace(/<[^>]*>/g, '').trim();
+
+        if (Array.isArray(storedModules)) {
             storedModules.forEach(mod => {
+                // [SECURITY] Bỏ qua nếu không phải object hoặc thiếu trường bắt buộc
+                if (!mod || typeof mod !== 'object') return;
+                if (!mod.id || !mod.name) return;
+
+                // [SECURITY] Sanitize từng trường: strip HTML + giới hạn độ dài
+                const safeId   = stripHtml(mod.id).slice(0, 64);
+                const safeName = stripHtml(mod.name).slice(0, 60);
+
+                // [SECURITY] Chỉ cho phép id chứa ký tự an toàn (alphanumeric, dấu gạch)
+                if (!/^[a-zA-Z0-9_\-]+$/.test(safeId)) {
+                    console.warn('[Security] Module id chứa ký tự không hợp lệ, bỏ qua:', safeId);
+                    return;
+                }
+
+                // [SECURITY] Chỉ dùng icon nếu nằm trong whitelist, fallback sang 'box'
+                const safeIcon = ALLOWED_ICONS.includes(mod.icon) ? mod.icon : 'box';
+
                 links.push({
-                    name: mod.name,
-                    file: `viewer.html?id=${mod.id}`,
-                    icon: mod.icon || 'box',
+                    name: safeName,
+                    file: `viewer.html?id=${safeId}`,
+                    icon: safeIcon,
                     isSpecial: false,
-                    isCustom: true // Tag for styling
+                    isCustom: true
                 });
             });
         }
     } catch (e) {
-        console.warn('Failed to load custom modules:', e);
+        // [SECURITY] Fail Closed — xóa dữ liệu hỏng, không để lọt vào UI
+        console.warn('[Security] Failed to load custom_modules, clearing corrupted data:', e);
+        try { localStorage.removeItem('custom_modules'); } catch (_) {}
     }
 
     const sidebar = document.createElement('div');
@@ -589,3 +622,111 @@ document.addEventListener('visibilitychange', () => {
         window.dispatchEvent(new CustomEvent('app-resumed'));
     }
 });
+
+// === KEYBOARD SCREENSHOT PROTECTION ===
+(function initScreenshotProtection() {
+
+    // --- Toast Notification ---
+    function showSecurityToast(msg) {
+        const existing = document.getElementById('__sec-toast__');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = '__sec-toast__';
+        toast.textContent = '🔒 ' + msg;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            background: rgba(15, 23, 42, 0.92);
+            color: #f87171;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+            z-index: 2147483647;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        `;
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => { toast.style.opacity = '1'; });
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 250);
+        }, 2200);
+    }
+
+    // --- Xóa Clipboard ---
+    function clearClipboard() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText('[Physics Lab] Chức năng chụp màn hình bị vô hiệu hóa.')
+                .catch(() => {});
+        }
+        // Fallback cho trình duyệt cũ
+        try {
+            const el = document.createElement('textarea');
+            el.value = '[Physics Lab] Chức năng chụp màn hình bị vô hiệu hóa.';
+            el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        } catch (_) {}
+    }
+
+    // --- Bộ phát hiện phím ---
+    document.addEventListener('keydown', function(e) {
+
+        // 1. PrintScreen (keyCode 44)
+        if (e.key === 'PrintScreen' || e.keyCode === 44) {
+            e.preventDefault();
+            clearClipboard();
+            showSecurityToast('Chụp màn hình bị chặn — Physics Lab');
+            console.warn('[Security] PrintScreen bị chặn.');
+            return false;
+        }
+
+        // 2. Ctrl + Shift + S (Save As nhiều trình duyệt/app)
+        if (e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSecurityToast('Lưu trang bị vô hiệu hóa — Physics Lab');
+            console.warn('[Security] Ctrl+Shift+S bị chặn.');
+            return false;
+        }
+
+        // 3. Ctrl + S (lưu trang web)
+        if (e.ctrlKey && !e.shiftKey && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSecurityToast('Lưu trang bị vô hiệu hóa — Physics Lab');
+            console.warn('[Security] Ctrl+S bị chặn.');
+            return false;
+        }
+
+        // 4. Ctrl + P (in trang)
+        if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showSecurityToast('In trang bị vô hiệu hóa — Physics Lab');
+            console.warn('[Security] Ctrl+P bị chặn.');
+            return false;
+        }
+
+    }, true); // useCapture = true: bắt sự kiện trước khi bubble lên
+
+    // --- Chặn menu chuột phải ---
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        showSecurityToast('Nhấp chuột phải bị vô hiệu hóa — Physics Lab');
+        return false;
+    });
+
+    console.log('[Security] Keyboard screenshot protection đã được kích hoạt.');
+})();
+

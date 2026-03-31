@@ -38,6 +38,33 @@ const e = 1.6;
 let currentI = 0;
 let targetI = 0;
 
+// ── Bidirectional I↔v coupling ──────────────────────────────
+let _editingI = false; // true while user is typing in the I field
+
+/** Called when user types directly into the I readout */
+function onIInput(rawVal) {
+    const Iinput = parseFloat(rawVal);
+    if (isNaN(Iinput) || Iinput < 0) return;
+
+    // Back-calculate v from I = S·(n/100)·v·e  →  v = I / (S·(n/100)·e)
+    // For all environments use the metal formula as the primary mapping;
+    // users see v change, animation updates accordingly.
+    const denominator = S * (n / 100) * e;
+    if (denominator < 1e-9) return;
+
+    const vCalc = Iinput / denominator;
+    const vClamped = Math.min(Math.max(vCalc, 0), 3.0); // clamp to slider range
+
+    // Sync the v variable and slider without retriggering onIInput
+    v = vCalc; // allow out-of-range for display, but clamp slider thumb
+    sliderV.value = vClamped.toFixed(2);
+    valV.innerText = vClamped.toFixed(1);
+
+    // Drive the animation target directly from typed value
+    targetI = Iinput;
+    currentI = Iinput; // snap immediately so the gauge responds
+}
+
 // Off-screen canvas generator helper
 function createParticleCanvas(coreColor, glowColor, size = 16) {
     const pc = document.createElement('canvas');
@@ -318,7 +345,11 @@ function render(time) {
     }
     
     currentI += (targetI - currentI) * 0.1;
-    readoutI.innerText = currentI.toFixed(2);
+
+    // Only update the readout when the user is NOT actively editing it
+    if (!_editingI) {
+        readoutI.value = currentI.toFixed(2);
+    }
     
     const maxI = 150;
     const progress = Math.min(currentI / maxI, 1);
@@ -418,4 +449,15 @@ function render(time) {
 updateMathEquation();
 updateParticleCount();
 updateI();
+
+// ── Focus/blur guards so render loop doesn't overwrite typed values ──
+readoutI.addEventListener('focus', () => { _editingI = true; });
+readoutI.addEventListener('blur',  () => {
+    _editingI = false;
+    // Re-sync display to latest computed value if user cleared/left invalid
+    if (isNaN(parseFloat(readoutI.value))) {
+        readoutI.value = currentI.toFixed(2);
+    }
+});
+
 requestAnimationFrame(render);

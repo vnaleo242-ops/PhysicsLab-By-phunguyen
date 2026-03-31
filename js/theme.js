@@ -303,6 +303,7 @@ function createGlobalSidebar() {
         { name: "Giao Thoa Ánh Sáng", file: "giao-thoa-anh-sang.html", icon: "sun" },
         { name: "Cơ chế sinh dòng điện", file: "dong-dien-kim-loai.html", icon: "zap", isSpecial: true },
         { name: "Đặc tuyến Điện Trở Nhiệt", file: "dien-tro-nhiet.html", icon: "thermometer", isSpecial: true },
+        { name: "Khảo sát Nguồn điện & Mạch kín", file: "nguon-dien-mach-kin.html", icon: "zap", isSpecial: true },
         { name: "Mạch Điện DC — MNA", file: "manh-dien-dc.html", icon: "circuit-board", isSpecial: true },
         { name: "Chuyển Thể 3D - Beta", file: "js/su-chuyen-the.html", icon: "box", isSpecial: true }
     ];

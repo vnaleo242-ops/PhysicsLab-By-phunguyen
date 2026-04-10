@@ -158,6 +158,28 @@ window.addEventListener('load', function () {
 
     // --- HOMEPAGE GRID MERGE LOGIC ---
     updateHomepageGrid();
+
+// --- STATIC THEORY SYSTEM INJECTION ---
+// Sử dụng setTimeout ngắn để đảm bảo Tailwind/Lucide đã ổn định
+setTimeout(function injectTheorySystem() {
+    const path = window.location.pathname;
+    const isHome = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('\\');
+    if (isHome) return; // Do not inject on homepage
+
+    const isJsDir = path.includes('/js/') || path.includes('\\js\\');
+    const theoryScript = document.createElement('script');
+    
+    // Tìm đường dẫn tương đối chính xác
+    const scriptPath = isJsDir ? './theory-system.js' : 'js/theory-system.js';
+    
+    theoryScript.src = scriptPath;
+    theoryScript.async = true;
+    
+    if (!document.querySelector(`script[src*="theory-system.js"]`)) {
+        (document.head || document.documentElement).appendChild(theoryScript);
+    }
+    console.log('[Theme System] Injected Theory System via:', scriptPath);
+}, 100);
 });
 
 function createGlobalSidebar() {
